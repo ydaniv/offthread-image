@@ -55,3 +55,11 @@ if (typeof window.OffthreadImage === 'undefined')
   window.OffthreadImage = OffthreadImage;
 else
   console.warn('OffthreadImage already exists');
+
+// Expose OffScreenImage to global.
+import OffscreenImage from './offscreen-img/offscreen-img';
+
+if (typeof window.OffscreenImage === 'undefined')
+  window.OffscreenImage = OffscreenImage;
+else
+  console.warn('OffscreenImage already exists');

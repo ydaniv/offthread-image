@@ -82,7 +82,17 @@ var bundles = {
   'offthread-img-worker': {
     url: './src/offthread-img/offthread-img-worker.js',
     name: 'offthread-img-worker.js'
-  }
+  },
+
+  'offscreen-img': {
+    url: './src/global.js',
+    name: 'offscreen-img.js'
+  },
+
+  'offscreen-img-worker': {
+    url: './src/offscreen-img/offscreen-img-worker.js',
+    name: 'offscreen-img-worker.js'
+  },
 };
 
 /** Clean */
