@@ -36,7 +36,7 @@ class Compositor {
 
                 if (response.status !== 200) {
                     return this.workerContext.postMessage({
-                        error: `Unable to load resource with url ${url}`
+                        error: `Unable to load resource with url ${src}`
                     });
                 }
 
@@ -48,13 +48,14 @@ class Compositor {
 
             // Do pixel manipulation and commit
             .then((imageBitmap) => {
-                this.setCanvasDimensions_(imageBitmap)
+                this.setCanvasDimensions_(canvas, imageBitmap, options);
+
                 this.composite(canvas, imageBitmap, options);
             })
 
             // Notify to main thread.
             .then(() => {
-                this.workerContext.postMessage({ url });
+                this.workerContext.postMessage({ url: src, done: true });
             }, (err) => {
                 this.workerContext.postMessage({
                     error: err.toString()
@@ -73,143 +74,61 @@ class Compositor {
             ctx.filter = options.filter;
         }
 
-        ctx.drawImage(bitmap, 0, 0);
+        ctx.drawImage(bitmap, 0, 0, options.drawWidth, options.drawHeight);
 
         ctx.commit();
     }
 
-    /**
-     * Sets the canvas's dimensions based on the ImageBitmap data provided.
-     *
-     * @private
-     * @param {ImageBitmap} imageBitmap - The ImageBitmap to use for resizing the
-     *   canvas (if necessary).
-     */
-    setCanvasDimensions_ (imageBitmap_) {
+    setCanvasDimensions_ (canvas, imageBitmap_, options) {
+        if (options.background) {
+            options.drawWidth = imageBitmap_.width;
+            options.drawHeight = imageBitmap_.height;
 
-        if (this.background_) {
-            // If this is a background image, default the canvas to the dimensions of
-            // the container element.
-            this.width_ = this.element_.offsetWidth;
-            this.height_ = this.element_.offsetHeight;
-
-            this.drawWidth_ = imageBitmap_.width;
-            this.drawHeight_ = imageBitmap_.height;
-
-            let backgroundSize =
-                window.getComputedStyle(this.element_).backgroundSize;
             let ratio = 1;
 
-            switch (backgroundSize) {
+            switch (options.backgroundSize) {
 
                 case 'contain':
-                    ratio = Math.min(this.width_ / this.drawWidth_,
-                        this.height_ / this.drawHeight_);
+                    ratio = Math.min(options.width / options.drawWidth,
+                        options.height / options.drawHeight);
                     break;
 
                 case 'cover':
-                    ratio = Math.max(this.width_ / this.drawWidth_,
-                        this.height_ / this.drawHeight_);
+                    ratio = Math.max(options.width / options.drawWidth,
+                        options.height / options.drawHeight);
                     break;
 
             }
 
-            this.drawWidth_ *= ratio;
-            this.drawHeight_ *= ratio;
+            options.drawWidth *= ratio;
+            options.drawHeight *= ratio;
 
-        } else {
+        }
+        else {
 
             // This is an inline image so now we need to account for it as such.
             // Firstly, if the width is set, but not the height, set the height based
             // on the width. And then do the same in reverse for height but not width
             // and finally default to whatever the image's natural dimensions were.
-            if (this.width_ !== null && this.height_ === null) {
-                this.height_ = this.width_ * (imageBitmap_.height / imageBitmap_.width);
-            } else if (this.width_ === null && this.height_ !== null) {
-                this.width_ = this.height_ * (imageBitmap_.width / imageBitmap_.height);
-            } else if (this.width_ === null && this.height_ === null) {
-                this.width_ = imageBitmap_.width;
-                this.height_ = imageBitmap_.height;
+            if (options.width !== null && options.height === null) {
+                options.height = options.width * (imageBitmap_.height / imageBitmap_.width);
+            } else if (options.width === null && options.height !== null) {
+                options.width = options.height * (imageBitmap_.width / imageBitmap_.height);
+            } else if (options.width === null && options.height === null) {
+                options.width = imageBitmap_.width;
+                options.height = imageBitmap_.height;
             }
 
-            this.width_ = parseInt(this.width_);
-            this.height_ = parseInt(this.height_);
+            options.width = parseInt(options.width);
+            options.height = parseInt(options.height);
 
-            this.drawWidth_ = this.width_;
-            this.drawHeight_ = this.height_;
+            options.drawWidth = options.width;
+            options.drawHeight = options.height;
         }
 
         // Now resize the canvas appropriately.
-        this.canvas_.width = this.width_;
-        this.canvas_.height = this.height_;
-
-    }
-
-    /**
-     * Sets the canvas's dimensions based on the ImageBitmap data provided.
-     *
-     * @private
-     * @param {ImageBitmap} imageBitmap - The ImageBitmap to use for resizing the
-     *   canvas (if necessary).
-     */
-    setCanvasDimensions_ (imageBitmap_) {
-
-        if (this.background_) {
-            // If this is a background image, default the canvas to the dimensions of
-            // the container element.
-            this.width_ = this.element_.offsetWidth;
-            this.height_ = this.element_.offsetHeight;
-
-            this.drawWidth_ = imageBitmap_.width;
-            this.drawHeight_ = imageBitmap_.height;
-
-            let backgroundSize =
-                window.getComputedStyle(this.element_).backgroundSize;
-            let ratio = 1;
-
-            switch (backgroundSize) {
-
-                case 'contain':
-                    ratio = Math.min(this.width_ / this.drawWidth_,
-                        this.height_ / this.drawHeight_);
-                    break;
-
-                case 'cover':
-                    ratio = Math.max(this.width_ / this.drawWidth_,
-                        this.height_ / this.drawHeight_);
-                    break;
-
-            }
-
-            this.drawWidth_ *= ratio;
-            this.drawHeight_ *= ratio;
-
-        } else {
-
-            // This is an inline image so now we need to account for it as such.
-            // Firstly, if the width is set, but not the height, set the height based
-            // on the width. And then do the same in reverse for height but not width
-            // and finally default to whatever the image's natural dimensions were.
-            if (this.width_ !== null && this.height_ === null) {
-                this.height_ = this.width_ * (imageBitmap_.height / imageBitmap_.width);
-            } else if (this.width_ === null && this.height_ !== null) {
-                this.width_ = this.height_ * (imageBitmap_.width / imageBitmap_.height);
-            } else if (this.width_ === null && this.height_ === null) {
-                this.width_ = imageBitmap_.width;
-                this.height_ = imageBitmap_.height;
-            }
-
-            this.width_ = parseInt(this.width_);
-            this.height_ = parseInt(this.height_);
-
-            this.drawWidth_ = this.width_;
-            this.drawHeight_ = this.height_;
-        }
-
-        // Now resize the canvas appropriately.
-        this.canvas_.width = this.width_;
-        this.canvas_.height = this.height_;
-
+        canvas.width = options.width;
+        canvas.height = options.height;
     }
 }
 

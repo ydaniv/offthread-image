@@ -45,11 +45,17 @@ export default class OffscreenImage extends OffthreadImage {
             this.src = element.dataset.src;
         }
         else if (element.dataset.bgSrc) {
-            this.src = element.dataset.bgSrc;
             this.background_ = true;
-        }
+            // If this is a background image, default the canvas to the dimensions of
+            // the container element.
+            this.width_ = this.element_.offsetWidth;
+            this.height_ = this.element_.offsetHeight;
 
-        // this.setCanvasIntrinsicDimensions_();
+            this.backgroundSize_ =
+                window.getComputedStyle(this.element_).backgroundSize;
+
+            this.src = element.dataset.bgSrc;
+        }
     }
 
     set imageBitmap (imageBitmap_) {
@@ -69,68 +75,6 @@ export default class OffscreenImage extends OffthreadImage {
         this.src_ = src_;
         this.status_ = OffscreenImage.STATUS.LOAD_STARTED;
         offscreenHandler.enqueue(this);
-    }
-
-    /**
-     * Sets the canvas's intrinsic dimensions based on the element and attributes.
-     *
-     * @private
-     */
-    setCanvasIntrinsicDimensions_ () {
-
-        if (this.background_) {
-            // If this is a background image, default the canvas to the dimensions of
-            // the container element.
-            this.width_ = this.element_.offsetWidth;
-            this.height_ = this.element_.offsetHeight;
-
-            let backgroundSize =
-                window.getComputedStyle(this.element_).backgroundSize;
-            let ratio = 1;
-
-            switch (backgroundSize) {
-
-                case 'contain':
-                    ratio = Math.min(this.width_ / this.drawWidth_,
-                        this.height_ / this.drawHeight_);
-                    break;
-
-                case 'cover':
-                    ratio = Math.max(this.width_ / this.drawWidth_,
-                        this.height_ / this.drawHeight_);
-                    break;
-
-            }
-
-            this.drawWidth_ *= ratio;
-            this.drawHeight_ *= ratio;
-
-        } else {
-
-            // This is an inline image so now we need to account for it as such.
-            // Firstly, if the width is set, but not the height, set the height based
-            // on the width. And then do the same in reverse for height but not width
-            // and finally default to whatever the image's natural dimensions were.
-            if (this.width_ !== null && this.height_ === null) {
-                this.height_ = this.width_ * (imageBitmap_.height / imageBitmap_.width);
-            } else if (this.width_ === null && this.height_ !== null) {
-                this.width_ = this.height_ * (imageBitmap_.width / imageBitmap_.height);
-            } else if (this.width_ === null && this.height_ === null) {
-                this.width_ = imageBitmap_.width;
-                this.height_ = imageBitmap_.height;
-            }
-
-            this.width_ = parseInt(this.width_);
-            this.height_ = parseInt(this.height_);
-
-            this.drawWidth_ = this.width_;
-            this.drawHeight_ = this.height_;
-        }
-
-        // Now resize the canvas appropriately.
-        this.canvas_.width = this.width_;
-        this.canvas_.height = this.height_;
-
     }
 }
 
@@ -161,6 +105,15 @@ class OffscreenImageHandler {
         // Ensure the URL is absolute.
         let src = this.convertURLToAbsolute_(offscreenImage.src);
         let canvas = offscreenImage.canvas_.transferControlToOffscreen();
+        const options = Object.assign({
+            width: offscreenImage.width_,
+            height: offscreenImage.height_,
+            drawWidth: offscreenImage.drawWidth_,
+            drawHeight: offscreenImage.drawHeight_,
+            background: offscreenImage.background_,
+            backgroundSize: offscreenImage.backgroundSize_,
+            filter: 'invert(100%)'
+        }, offscreenImage.options);
 
         if (typeof this.jobs[src] === 'undefined') {
             this.jobs[src] = [];
@@ -171,7 +124,7 @@ class OffscreenImageHandler {
         this.worker.postMessage({
             src,
             canvas,
-            options: offscreenImage.options
+            options
         }, [canvas]);
 
         offscreenImage.status = OffscreenImage.STATUS.LOAD_STARTED;
@@ -232,19 +185,15 @@ class OffscreenImageHandler {
                 element = elements[e];
                 element.status = OffscreenImage.STATUS.LOADED;
             }
-            return;
         }
-
-        // let imageBitmap = message.imageBitmap;
-        //
-        // for (let e = 0; e < elements.length; e++) {
-        //     element = elements[e];
-        //     element.status = OffscreenImage.STATUS.DECODED;
-        //     element.imageBitmap = imageBitmap;
-        // }
-
-        // These elements no longer need updating, so purge the list.
-        this.jobs[url].length = 0;
+        else if (message.done) {
+            for (let e = 0; e < elements.length; e++) {
+                element = elements[e];
+                element.status = OffscreenImage.STATUS.DECODED;
+            }
+            // These elements no longer need updating, so purge the list.
+            this.jobs[url].length = 0;
+        }
     }
 }
 
